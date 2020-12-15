@@ -40,7 +40,7 @@ can't play this move because he doesn't have the card on hand anymore.
 If no return crosses the threshold (as would be likely for bots with high randomness),
 the fallback to the aforementioned middle-field-priority is used.
 
-The threshhold function is modeled by
+The threshold function is modeled by
 
 `(weight of current return for value p) / (weight of all returns for value p) * 100`
 
