@@ -28,6 +28,8 @@ public class DoomBot extends Player {
     private ArrayList<Integer> field4 = new ArrayList<>(); // 1, 2, 3
     private ArrayList<Integer> field5 = new ArrayList<>(); // 4, 5, 6
 
+    private int fieldBias;
+
     /**
      * statTable is using the following construct:
      * <br>
@@ -76,22 +78,16 @@ public class DoomBot extends Player {
 
         // Analyze the stats and return card most likely to beat or middle field fallback
         return analyzeStatistics(pointCardValue);
+        //return middleFieldCard(pointCardValue);
     }
 
     /**
      * Returns the field reference that should be used for the middle field strategy.
      * */
-    private ArrayList<Integer> assignField(int pointValue) {
-        int lBound = getWinCounter() / 2 - totalRounds / 10;
-        int uBound = getWinCounter() / 2 + totalRounds / 10;
-        int oWins = getOponnents().get(0).getWinCounter();
-
-        // Does the bot play too similar to our strategy? If yes, switch field priorities
-        boolean similar = lBound < oWins && oWins < uBound;
-
+    private ArrayList<Integer> assignField(int pointValue, boolean upperBias) {
         return switch (pointValue) {
-            case 8, 9, 10 -> similar ? field2 : field1;
-            case 7, 6, 5 -> similar ? field1: field2;
+            case 8, 9, 10 -> upperBias ? field2 : field1;
+            case 7, 6, 5 -> upperBias ? field1: field2;
             case 4, 3, 2 -> field3;
             case 1, -1, -2 -> field4;
             case -3, -4, -5 -> field5;
@@ -100,21 +96,23 @@ public class DoomBot extends Player {
     }
 
     private PlayerCard middleFieldCard(int pointValue) {
-        ArrayList<Integer> fieldToUse = assignField(pointValue);
+        ArrayList<Integer> fieldToUse = assignField(pointValue, false);
+        return fieldCard(fieldToUse);
+    }
 
-        if (fieldToUse != null) {
-            int index = new Random().nextInt(fieldToUse.size());
-            if (canUse(new PlayerCard(fieldToUse.get(index)))) {
-                PlayerCard pC = getCard(fieldToUse.get(index));
-                fieldToUse.remove(index);
-                return pC;
-            } else {
-                // The card we would normally use from the field has already been used by the statistical method
-                return getCards().get(Util.random(0, getCards().size() - 1));
+    private PlayerCard fieldCard(ArrayList<Integer> fieldToUse) {
+        if (fieldToUse.isEmpty())
+            return getCards().get(Util.random(0, getCards().size() - 1));
 
-            }
+        int index = new Random().nextInt(fieldToUse.size());
+        if (canUse(new PlayerCard(fieldToUse.get(index)))) {
+            PlayerCard pC = getCard(fieldToUse.get(index));
+            fieldToUse.remove(index);
+            return pC;
+        } else {
+            // The card we would normally use from the field has already been used by the statistical method
+            return getCards().get(Util.random(0, getCards().size() - 1));
         }
-        return null; // should never happen
     }
 
     private PlayerCard analyzeStatistics(int pointValue) {
@@ -136,6 +134,7 @@ public class DoomBot extends Player {
             }
 
             // Sort the map by value (weight), large to small since high weight means high confidence the enemy will pick it
+            // We use the newer Java 8 stream methods for this since it enables us to sort the map without using placeholder arrays
             HashMap<Integer, Integer> sortedMap = responses.entrySet().stream().sorted(Map.Entry.<Integer, Integer>comparingByValue().reversed())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
 
@@ -148,6 +147,7 @@ public class DoomBot extends Player {
                 float weightFromTotal = (float) e.getValue() / sum * 100;
 
                 // Is the weight over 30% of all played weights for this value? = max 3 different outputs for one input
+                // (for equal distribution) or a very favored pick
                 // -> Likely that the bot is not random?
                 if (weightFromTotal > 30) {
                     // Can the enemy use that card? If not, try the next lower entry to minimize our bet
@@ -187,26 +187,23 @@ public class DoomBot extends Player {
     }
 
     private PlayerCard cardThatBeats(int enemyPrediction, int pointValue) {
-        // TODO Analyze the fields (upper/lower bounds of prediction) and
-        //  figure out whether to over- or underbid them for the current points
+        ArrayList<Integer> fieldToUse = assignField(pointValue, false);
 
-        // If the enemy prediction is 15, we could only draw
-        if (enemyPrediction != 15) {
-            // can we beat the prediction by 1?
-            if (canUse(new PlayerCard(enemyPrediction + 1))) {
-                // We still have to remove it from our middle fields so we don't try to use it when falling back
-                ArrayList<Integer> fieldToUse = assignField(pointValue);
-                fieldToUse.remove((Integer) (enemyPrediction + 1));
-                return getCard(enemyPrediction + 1);
-            } else {
-                // return null -> try lower
-                return null;
-            }
-        } else { // we don't want to waste our good cards for drawing
-            return middleFieldCard(pointValue);
+        // The enemy has a middle field strat as well and chooses similar for high-value fields
+        if (fieldToUse.contains(enemyPrediction) && (fieldToUse.equals(field1) || fieldToUse.equals(field2)))
+            fieldBias++;
+
+        // The field to use gets assigned with a bias for higher values, resulting in a higher chance to beat a
+        // middle-first strategy
+        if (fieldBias > 5) {
+            return fieldCard(assignField(pointValue, true));
+        } else {
+            // same as middle field
+            return fieldCard(fieldToUse);
         }
     }
 
+    // Create or update the statTable entries for the given point value
     private void updateStatistics(int points) {
         int eV = getOponnents().get(0).getLastMove().getValue();
 
@@ -224,21 +221,6 @@ public class DoomBot extends Player {
         } else {
             statTable.put(points, new ArrayList<>());
             statTable.get(points).add(new OpponentResponse(eV));
-        }
-    }
-
-    public void writeToStatFile() {
-        Path path = Paths.get("C:\\Users\\Benutzer01\\Downloads\\stats.txt");
-
-        for (Map.Entry<Integer, ArrayList<OpponentResponse>> entry : statTable.entrySet()) {
-            for (OpponentResponse r : entry.getValue()) {
-                String output = entry.getKey() + ", " + r.getValue() + ", " + r.getWeight() +"\n";
-                try {
-                    Files.writeString(path, output, StandardOpenOption.APPEND);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
         }
     }
 }
