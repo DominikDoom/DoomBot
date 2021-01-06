@@ -7,17 +7,12 @@ import de.rabitem.main.player.Player;
 import de.rabitem.main.player.instances.doomutil.OpponentResponse;
 import de.rabitem.main.util.Util;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class DoomBot extends Player {
 
-    private int totalRounds;
+    private final int totalRounds;
     private boolean first = false;
     private int lastPointValue;
 
@@ -33,7 +28,7 @@ public class DoomBot extends Player {
     /**
      * statTable is using the following construct:
      * <br>
-     * <b>[ Point value | List of played cards|Weight ]</b>
+     * <b>[ Point value | List of {Played card|Weight} ]</b>
      * <br>
      * where <i>weight</i> is the number of times the played card
      * was given for that point value.
@@ -78,11 +73,12 @@ public class DoomBot extends Player {
 
         // Analyze the stats and return card most likely to beat or middle field fallback
         return analyzeStatistics(pointCardValue);
-        //return middleFieldCard(pointCardValue);
     }
 
     /**
      * Returns the field reference that should be used for the middle field strategy.
+     * If upperBias is true, switch priorities to get higher chances of defeating bots
+     * with a similar strategy
      * */
     private ArrayList<Integer> assignField(int pointValue, boolean upperBias) {
         return switch (pointValue) {
@@ -186,6 +182,13 @@ public class DoomBot extends Player {
         return middleFieldCard(pointValue);
     }
 
+    /**
+     * Compares the enemyPrediction to our own middle field choice, allowing to detect
+     * similar play styles and switch strategies when a certain threshold is met.
+     *
+     * @return If the bias is met, the card that is more likely to beat that similar play style,
+     * else the normal middle field card.
+     * */
     private PlayerCard cardThatBeats(int enemyPrediction, int pointValue) {
         ArrayList<Integer> fieldToUse = assignField(pointValue, false);
 
@@ -203,7 +206,9 @@ public class DoomBot extends Player {
         }
     }
 
-    // Create or update the statTable entries for the given point value
+    /**
+     * Create or update the statTable entries for the given point value
+     * */
     private void updateStatistics(int points) {
         int eV = getOponnents().get(0).getLastMove().getValue();
 

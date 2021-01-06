@@ -9,7 +9,7 @@ package de.rabitem.main.player.instances.doomutil;
      * it is stored in
      * */
     public class OpponentResponse {
-    private int value;
+    private final int value;
     private int weight;
 
     /**
