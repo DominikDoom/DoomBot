@@ -33,11 +33,12 @@ track of one opponent.
 
 The DoomBot looks at the statistics memory each time it should play a new card.
 If the stored weight for specific points gets high enough in respect to the total, it is determined as *likely*,
-and a card most likely to beat it will be selected. If more than one
-return applies, the highest percentage will be used, except if the enemy
-can't play this move because he doesn't have the card on hand anymore.
+and the thus predicted enemy choice gets compared to our own. If it matches a middle field strategy, the DoomBot
+adjusts its priority to counter it more effectively. Due to a missing match-spanning algorithm that could predict wether
+to over- or underbid the enemy and which cards to use for it, this underutilizes the available data but performs better than
+always trying to one-up the enemy.
 
-If no return crosses the threshold (as would be likely for bots with high randomness),
+If no return crosses the chosen threshold of 30% (as would be likely for bots with high randomness),
 the fallback to the aforementioned middle-field-priority is used.
 
 The threshold function is modeled by
