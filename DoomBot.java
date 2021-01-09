@@ -59,7 +59,6 @@ public class DoomBot extends Player {
     @Override
     public PlayerCard getNextCardFromPlayer(int pointCardValue) {
         PlayerCard enemyLast = getOponnents().get(0).getLastMove();
-        ActionManagerUtil.getRoundsPlayed();
 
         // if enemyLast is null, we are in the first round
         if (enemyLast == null) {
